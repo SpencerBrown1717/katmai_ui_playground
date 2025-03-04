@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Katmai Computing - Enhanced Quantum Circuit Editor</title>
+    <title>Katmai Computing - NMR Quantum Workbench</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
@@ -21,6 +21,7 @@
             --gate-bg: #f8f8fa;
             --gate-border: #ddd;
             --grid-line: rgba(111, 66, 193, 0.3);
+            --grid-line-active: rgba(111, 66, 193, 0.6);
             --grid-bg: rgba(14, 13, 26, 0.6);
             --grid-cell-hover: rgba(111, 66, 193, 0.1);
             --highlight: rgba(168, 85, 247, 0.5);
@@ -31,6 +32,7 @@
             --error-color: #ff5a5a;
             --success-color: #4caf50;
             --grid-marker-color: #9a78f8;
+            --help-bg: rgba(14, 13, 26, 0.95);
         }
         
         * {
@@ -50,13 +52,14 @@
             line-height: 1.5;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            overflow-x: hidden;
         }
         
         .app-container {
             display: flex;
             flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
+            min-height: 100vh;
+            width: 100%;
         }
         
         /* Header */
@@ -206,12 +209,42 @@
             display: flex;
             flex-direction: column;
             gap: 5px;
+            position: relative;
         }
 
         .nmr-parameter label {
             font-size: 12px;
             color: var(--text-secondary);
             font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+
+        .param-help {
+            margin-left: 5px;
+            color: var(--light-purple);
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .param-tooltip {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: var(--help-bg);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid var(--primary-purple);
+            width: 250px;
+            z-index: 100;
+            font-size: 12px;
+            color: var(--text-secondary);
+            box-shadow: var(--shadow-md);
+            display: none;
+        }
+
+        .param-help:hover + .param-tooltip {
+            display: block;
         }
 
         .nmr-parameter input {
@@ -382,6 +415,59 @@
             justify-content: center;
             border: 1px solid rgba(111, 66, 193, 0.3);
         }
+
+        .gate-info {
+            position: absolute;
+            top: 48px;
+            left: 0;
+            width: 220px;
+            background-color: var(--help-bg);
+            border: 1px solid var(--primary-purple);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            z-index: 100;
+            box-shadow: var(--shadow-md);
+            display: none;
+        }
+
+        .gate-info h4 {
+            color: var(--text-color);
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+        }
+
+        .gate-info h4 span {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            background: var(--accent-color);
+            border-radius: 4px;
+            text-align: center;
+            line-height: 24px;
+            margin-right: 8px;
+            color: white;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .gate-info p {
+            margin-bottom: 5px;
+        }
+
+        .gate-info .matrix {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: rgba(111, 66, 193, 0.1);
+            padding: 5px;
+            border-radius: 4px;
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+
+        .gate-button:hover .gate-info {
+            display: block;
+        }
         
         /* Circuit Editor */
         .circuit-editor {
@@ -401,6 +487,7 @@
             overflow: auto;
             position: relative;
             padding: 30px;
+            min-height: 400px;
             scrollbar-width: thin;
             scrollbar-color: var(--primary-purple) var(--bg-color);
         }
@@ -423,11 +510,17 @@
             position: relative;
             width: 100%;
             min-width: 800px;
-            height: 250px;
+            height: 300px;
             background-color: var(--grid-bg);
             border-radius: 8px;
             box-shadow: 0 0 0 1px rgba(111, 66, 193, 0.2);
             padding: 10px;
+            transition: var(--transition-normal);
+            margin-bottom: 20px;
+        }
+
+        .circuit-wrapper.highlight-ensemble {
+            box-shadow: 0 0 0 2px var(--accent-color), 0 0 20px rgba(161, 86, 247, 0.4);
         }
         
         .grid-lines {
@@ -445,6 +538,12 @@
             right: 0;
             height: 1px;
             background-color: var(--grid-line);
+            transition: var(--transition-fast);
+        }
+
+        .horizontal-line.qubit-line {
+            background-color: var(--grid-line-active);
+            height: 2px;
         }
         
         .vertical-line {
@@ -453,6 +552,12 @@
             bottom: 0;
             width: 1px;
             background-color: var(--grid-line);
+            transition: var(--transition-fast);
+        }
+
+        .vertical-line.active {
+            background-color: var(--grid-line-active);
+            width: 2px;
         }
         
         .grid-marker {
@@ -462,8 +567,7 @@
             color: var(--grid-marker-color);
             text-align: center;
             font-family: 'JetBrains Mono', monospace;
-            width: 20px;
-            margin-left: -10px;
+            width: 24px;
             background-color: rgba(0, 0, 0, 0.3);
             border-radius: 3px;
             padding: 1px 0;
@@ -476,6 +580,7 @@
             height: 65px;
             transition: var(--transition-fast);
             border-radius: 4px;
+            z-index: 1;
         }
         
         .grid-cell:hover {
@@ -498,6 +603,11 @@
             box-shadow: 0 0 0 1px rgba(111, 66, 193, 0.3);
             z-index: 5;
         }
+
+        .qubit-label.ensemble {
+            background-color: rgba(111, 66, 193, 0.3);
+            box-shadow: 0 0 0 1px rgba(161, 86, 247, 0.5), 0 0 10px rgba(161, 86, 247, 0.3);
+        }
         
         .state-label {
             margin-left: 8px;
@@ -508,6 +618,16 @@
             padding: 2px 6px;
             border-radius: 4px;
             box-shadow: 0 0 0 1px rgba(111, 66, 193, 0.2);
+        }
+
+        .ensemble-badge {
+            margin-left: 8px;
+            font-size: 10px;
+            background-color: var(--accent-color);
+            color: white;
+            padding: 1px 6px;
+            border-radius: 10px;
+            letter-spacing: 0.5px;
         }
         
         .circuit-gate {
@@ -545,6 +665,12 @@
             box-shadow: 0 0 0 3px var(--accent-color), var(--shadow-md);
             z-index: 20;
             animation: pulse 2s infinite;
+        }
+
+        .circuit-gate.nmr-gate {
+            background: linear-gradient(135deg, var(--accent-color), var(--primary-purple));
+            color: white;
+            border: none;
         }
         
         @keyframes pulse {
@@ -589,6 +715,89 @@
             0% { box-shadow: 0 0 0 0 rgba(161, 86, 247, 0.4); }
             70% { box-shadow: 0 0 0 10px rgba(161, 86, 247, 0); }
             100% { box-shadow: 0 0 0 0 rgba(161, 86, 247, 0); }
+        }
+
+        /* NMR Ensemble Visualization */
+        .ensemble-visualization {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            width: 200px;
+            height: 200px;
+            background-color: rgba(14, 13, 26, 0.8);
+            border-radius: 8px;
+            box-shadow: 0 0 0 1px rgba(111, 66, 193, 0.3);
+            overflow: hidden;
+            z-index: 15;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ensemble-viz-header {
+            padding: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-bottom: 1px solid rgba(111, 66, 193, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .ensemble-viz-header i {
+            color: var(--accent-color);
+            margin-right: 5px;
+        }
+
+        .ensemble-viz-content {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .ensemble-spins {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            transform-style: preserve-3d;
+            animation: spin 20s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotateY(0deg) rotateX(20deg); }
+            100% { transform: rotateY(360deg) rotateX(20deg); }
+        }
+
+        .ensemble-spin {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background-color: var(--light-purple);
+            border-radius: 50%;
+            transform-style: preserve-3d;
+            box-shadow: 0 0 5px var(--light-purple);
+        }
+
+        .ensemble-arrow {
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 0;
+            height: 30px;
+            transform-origin: top;
+            transform: rotate3d(var(--x, 0), var(--y, 0), var(--z, 1), var(--angle, 0deg));
+        }
+
+        .ensemble-arrow::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -1px;
+            width: 2px;
+            height: 100%;
+            background: linear-gradient(to bottom, var(--accent-color), transparent);
         }
         
         /* Frequency Controls */
@@ -753,7 +962,7 @@
         }
         
         .pulse-visualization {
-            height: 70px;
+            height: 80px;
             display: flex;
             overflow: hidden;
         }
@@ -812,6 +1021,14 @@
             background: linear-gradient(to right, 
                 var(--light-purple) 0%, 
                 var(--primary-purple) 100%);
+        }
+
+        .pulse-block.π4 {
+            background: linear-gradient(to right, 
+                var(--light-purple) 0%, 
+                var(--accent-color) 100%);
+            height: 35%;
+            top: 33%;
         }
 
         .time-marker {
@@ -926,6 +1143,88 @@
             color: var(--text-secondary);
             white-space: nowrap;
             font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Educational Help Panel */
+        .help-panel {
+            position: absolute;
+            right: 20px;
+            bottom: 20px;
+            width: 300px;
+            background-color: var(--panel-bg);
+            border-radius: 8px;
+            border: 1px solid rgba(111, 66, 193, 0.3);
+            box-shadow: var(--shadow-md);
+            z-index: 50;
+            font-size: 13px;
+            overflow: hidden;
+            transition: var(--transition-normal);
+            transform: translateY(0);
+        }
+
+        .help-panel.collapsed {
+            transform: translateY(calc(100% - 40px));
+        }
+
+        .help-panel-header {
+            padding: 10px 15px;
+            background-color: var(--panel-lighter);
+            border-bottom: 1px solid rgba(111, 66, 193, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .help-panel-title {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+
+        .help-panel-title i {
+            margin-right: 8px;
+            color: var(--accent-color);
+        }
+
+        .help-panel-content {
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .help-section {
+            margin-bottom: 15px;
+        }
+
+        .help-section h3 {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: var(--light-purple);
+        }
+
+        .help-section p {
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .help-section ul {
+            list-style: none;
+            padding-left: 20px;
+        }
+
+        .help-section li {
+            position: relative;
+            padding-left: 15px;
+            margin-bottom: 5px;
+            color: var(--text-secondary);
+        }
+
+        .help-section li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: var(--accent-color);
         }
         
         /* Footer */
@@ -1151,7 +1450,7 @@
         }
 
         /* Responsive adjustments */
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
             .nmr-controls {
                 flex-direction: column;
                 gap: 15px;
@@ -1180,6 +1479,62 @@
             
             .gate-section {
                 margin-bottom: 10px;
+            }
+            
+            .circuit-grid {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .ensemble-visualization {
+                position: static;
+                margin: 20px auto;
+                width: 90%;
+                max-width: 300px;
+            }
+        }
+        
+        /* Mobile view adjustments */
+        @media (max-width: 768px) {
+            .header-title {
+                font-size: 14px;
+            }
+            
+            .back-button {
+                margin-right: 10px;
+            }
+            
+            .header-button {
+                padding: 5px 8px;
+                font-size: 12px;
+            }
+            
+            .header-button i {
+                margin-right: 4px;
+            }
+            
+            .subheader {
+                flex-direction: column;
+                height: auto;
+                gap: 10px;
+                padding: 10px;
+            }
+            
+            .settings-section {
+                width: 100%;
+                justify-content: space-between;
+            }
+            
+            .circuit-wrapper {
+                padding-bottom: 40px;
+                overflow-x: auto;
+            }
+            
+            .help-panel {
+                width: 100%;
+                left: 0;
+                right: 0;
+                border-radius: 0;
             }
         }
     </style>
@@ -1239,22 +1594,46 @@
             <div class="panel-content" id="nmr-panel-content">
                 <div class="nmr-controls">
                     <div class="nmr-parameter">
-                        <label for="larmorFreq">Larmor Frequency (MHz)</label>
+                        <label for="larmorFreq">
+                            Larmor Frequency (MHz)
+                            <i class="fas fa-question-circle param-help"></i>
+                        </label>
+                        <div class="param-tooltip">
+                            The precession frequency of nuclear spins in the external magnetic field. Higher frequencies indicate stronger magnetic fields and faster spin precession.
+                        </div>
                         <input type="number" id="larmorFreq" value="500" step="0.1" min="0">
                         <div class="error-message">Must be positive</div>
                     </div>
                     <div class="nmr-parameter">
-                        <label for="pulseDuration">Pulse Duration (μs)</label>
+                        <label for="pulseDuration">
+                            Pulse Duration (μs)
+                            <i class="fas fa-question-circle param-help"></i>
+                        </label>
+                        <div class="param-tooltip">
+                            The duration of RF pulses applied to the ensemble qubits. Controls the rotation angle of the quantum state on the Bloch sphere.
+                        </div>
                         <input type="number" id="pulseDuration" value="10" step="0.1" min="0">
                         <div class="error-message">Must be positive</div>
                     </div>
                     <div class="nmr-parameter">
-                        <label for="relaxationT1">Relaxation Time T1 (s)</label>
+                        <label for="relaxationT1">
+                            Relaxation Time T1 (s)
+                            <i class="fas fa-question-circle param-help"></i>
+                        </label>
+                        <div class="param-tooltip">
+                            Longitudinal (spin-lattice) relaxation time. Characterizes how quickly spins return to thermal equilibrium along z-axis after excitation.
+                        </div>
                         <input type="number" id="relaxationT1" value="1.0" step="0.1" min="0">
                         <div class="error-message">Must be positive</div>
                     </div>
                     <div class="nmr-parameter">
-                        <label for="relaxationT2">Relaxation Time T2 (s)</label>
+                        <label for="relaxationT2">
+                            Relaxation Time T2 (s)
+                            <i class="fas fa-question-circle param-help"></i>
+                        </label>
+                        <div class="param-tooltip">
+                            Transverse (spin-spin) relaxation time. Characterizes how quickly spins lose phase coherence in the xy-plane, limiting qubit coherence time.
+                        </div>
                         <input type="number" id="relaxationT2" value="0.5" step="0.1" min="0">
                         <div class="error-message">Must be positive and less than T1</div>
                     </div>
@@ -1295,22 +1674,67 @@
                         <div class="gate-button selected" data-tooltip="Hadamard Gate" role="button" tabindex="0" aria-label="Hadamard Gate">
                             H
                             <span class="gate-index">1</span>
+                            <div class="gate-info">
+                                <h4><span>H</span> Hadamard Gate</h4>
+                                <p>Creates superposition by rotating between X and Z basis.</p>
+                                <div class="matrix">
+                                    [1  1]<br>
+                                    [1 -1] × 1/√2
+                                </div>
+                                <p>Maps |0⟩ → (|0⟩+|1⟩)/√2 and |1⟩ → (|0⟩-|1⟩)/√2</p>
+                            </div>
                         </div>
                         <div class="gate-button" data-tooltip="Identity Gate" role="button" tabindex="0" aria-label="Identity Gate">
                             I
                             <span class="gate-index">2</span>
+                            <div class="gate-info">
+                                <h4><span>I</span> Identity Gate</h4>
+                                <p>Does nothing to the qubit state.</p>
+                                <div class="matrix">
+                                    [1 0]<br>
+                                    [0 1]
+                                </div>
+                                <p>Used as a placeholder or for timing alignment.</p>
+                            </div>
                         </div>
                         <div class="gate-button" data-tooltip="Pauli-X Gate" role="button" tabindex="0" aria-label="Pauli-X Gate">
                             X
                             <span class="gate-index">3</span>
+                            <div class="gate-info">
+                                <h4><span>X</span> Pauli-X Gate</h4>
+                                <p>Quantum equivalent of classical NOT gate.</p>
+                                <div class="matrix">
+                                    [0 1]<br>
+                                    [1 0]
+                                </div>
+                                <p>Flips |0⟩ → |1⟩ and |1⟩ → |0⟩. 180° rotation around X-axis.</p>
+                            </div>
                         </div>
                         <div class="gate-button" data-tooltip="Pauli-Y Gate" role="button" tabindex="0" aria-label="Pauli-Y Gate">
                             Y
                             <span class="gate-index">4</span>
+                            <div class="gate-info">
+                                <h4><span>Y</span> Pauli-Y Gate</h4>
+                                <p>Rotation around Y-axis of the Bloch sphere.</p>
+                                <div class="matrix">
+                                    [0 -i]<br>
+                                    [i  0]
+                                </div>
+                                <p>Maps |0⟩ → i|1⟩ and |1⟩ → -i|0⟩. 180° rotation around Y-axis.</p>
+                            </div>
                         </div>
                         <div class="gate-button" data-tooltip="Pauli-Z Gate" role="button" tabindex="0" aria-label="Pauli-Z Gate">
                             Z
                             <span class="gate-index">5</span>
+                            <div class="gate-info">
+                                <h4><span>Z</span> Pauli-Z Gate</h4>
+                                <p>Phase flip gate. 180° rotation around Z-axis.</p>
+                                <div class="matrix">
+                                    [1  0]<br>
+                                    [0 -1]
+                                </div>
+                                <p>Leaves |0⟩ unchanged and maps |1⟩ → -|1⟩.</p>
+                            </div>
                         </div>
                     </div>
                     
@@ -1318,14 +1742,37 @@
                         <div class="gate-button" data-tooltip="Square Root of X" role="button" tabindex="0" aria-label="Square Root of X Gate">
                             <span style="font-size: 12px;">√X</span>
                             <span class="gate-index">6</span>
+                            <div class="gate-info">
+                                <h4><span>√X</span> Square Root of X</h4>
+                                <p>90° rotation around X-axis. Two applications equal an X gate.</p>
+                                <div class="matrix">
+                                    [1+i 1-i]<br>
+                                    [1-i 1+i] × 1/2
+                                </div>
+                                <p>Common in NMR quantum computing as a π/2 pulse.</p>
+                            </div>
                         </div>
                         <div class="gate-button" data-tooltip="Square Root of Y" role="button" tabindex="0" aria-label="Square Root of Y Gate">
                             <span style="font-size: 12px;">√Y</span>
                             <span class="gate-index">7</span>
+                            <div class="gate-info">
+                                <h4><span>√Y</span> Square Root of Y</h4>
+                                <p>90° rotation around Y-axis. Two applications equal a Y gate.</p>
+                                <p>Important for constructing arbitrary single-qubit rotations.</p>
+                            </div>
                         </div>
                         <div class="gate-button" data-tooltip="Square Root of Z" role="button" tabindex="0" aria-label="Square Root of Z Gate">
                             <span style="font-size: 12px;">√Z</span>
                             <span class="gate-index">8</span>
+                            <div class="gate-info">
+                                <h4><span>√Z</span> Square Root of Z</h4>
+                                <p>90° rotation around Z-axis. Also known as the S or Phase gate.</p>
+                                <div class="matrix">
+                                    [1 0]<br>
+                                    [0 i]
+                                </div>
+                                <p>Introduces a 90° phase shift.</p>
+                            </div>
                         </div>
                     </div>
                     
@@ -1333,14 +1780,29 @@
                         <div class="gate-button" data-tooltip="Rotation around X" role="button" tabindex="0" aria-label="Rotation around X Gate">
                             Rx
                             <span class="gate-index">9</span>
+                            <div class="gate-info">
+                                <h4><span>Rx</span> X-Rotation</h4>
+                                <p>Parameterized rotation around X-axis by any angle θ.</p>
+                                <p>In NMR, corresponds to RF pulse with specific duration and phase.</p>
+                            </div>
                         </div>
                         <div class="gate-button" data-tooltip="Rotation around Y" role="button" tabindex="0" aria-label="Rotation around Y Gate">
                             Ry
                             <span class="gate-index">10</span>
+                            <div class="gate-info">
+                                <h4><span>Ry</span> Y-Rotation</h4>
+                                <p>Parameterized rotation around Y-axis by any angle θ.</p>
+                                <p>Essential component for arbitrary state preparation.</p>
+                            </div>
                         </div>
                         <div class="gate-button" data-tooltip="Rotation around Z" role="button" tabindex="0" aria-label="Rotation around Z Gate">
                             Rz
                             <span class="gate-index">11</span>
+                            <div class="gate-info">
+                                <h4><span>Rz</span> Z-Rotation</h4>
+                                <p>Parameterized rotation around Z-axis by any angle θ.</p>
+                                <p>Often implemented using virtual Z-rotations in NMR systems.</p>
+                            </div>
                         </div>
                     </div>
                     
@@ -1348,18 +1810,46 @@
                         <div class="gate-button" data-tooltip="T Gate" role="button" tabindex="0" aria-label="T Gate">
                             T
                             <span class="gate-index">12</span>
+                            <div class="gate-info">
+                                <h4><span>T</span> T Gate</h4>
+                                <p>45° phase rotation. Fourth root of Z gate.</p>
+                                <div class="matrix">
+                                    [1 0]<br>
+                                    [0 e^(iπ/4)]
+                                </div>
+                                <p>Critical for universal quantum computation.</p>
+                            </div>
                         </div>
                         <div class="gate-button" data-tooltip="T Dagger Gate" role="button" tabindex="0" aria-label="T Dagger Gate">
                             T†
                             <span class="gate-index">13</span>
+                            <div class="gate-info">
+                                <h4><span>T†</span> T-Dagger Gate</h4>
+                                <p>Inverse of T gate. -45° phase rotation.</p>
+                                <p>Used to construct fault-tolerant quantum circuits.</p>
+                            </div>
                         </div>
                         <div class="gate-button" data-tooltip="S Gate (Phase)" role="button" tabindex="0" aria-label="S Gate">
                             S
                             <span class="gate-index">14</span>
+                            <div class="gate-info">
+                                <h4><span>S</span> S Gate</h4>
+                                <p>90° phase rotation. Same as √Z gate.</p>
+                                <div class="matrix">
+                                    [1 0]<br>
+                                    [0 i]
+                                </div>
+                                <p>Used with H gates to construct T gates in some architectures.</p>
+                            </div>
                         </div>
                         <div class="gate-button" data-tooltip="S Dagger Gate" role="button" tabindex="0" aria-label="S Dagger Gate">
                             S†
                             <span class="gate-index">15</span>
+                            <div class="gate-info">
+                                <h4><span>S†</span> S-Dagger Gate</h4>
+                                <p>Inverse of S gate. -90° phase rotation.</p>
+                                <p>Useful for undoing unwanted phase shifts.</p>
+                            </div>
                         </div>
                     </div>
                     
@@ -1367,10 +1857,20 @@
                         <div class="gate-button" data-tooltip="Controlled NOT Gate" role="button" tabindex="0" aria-label="Controlled NOT Gate">
                             CX
                             <span class="gate-index">16</span>
+                            <div class="gate-info">
+                                <h4><span>CX</span> CNOT Gate</h4>
+                                <p>Two-qubit gate that flips a target qubit if control qubit is |1⟩.</p>
+                                <p>In NMR, implemented using J-coupling between nuclear spins.</p>
+                            </div>
                         </div>
                         <div class="gate-button" data-tooltip="Controlled Z Gate" role="button" tabindex="0" aria-label="Controlled Z Gate">
                             CZ
                             <span class="gate-index">17</span>
+                            <div class="gate-info">
+                                <h4><span>CZ</span> Controlled-Z</h4>
+                                <p>Two-qubit gate that applies Z to target qubit if control is |1⟩.</p>
+                                <p>Symmetric gate with phase shift only when both qubits are |1⟩.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1380,18 +1880,19 @@
         <!-- Circuit Editor Area -->
         <div class="circuit-editor">
             <div class="circuit-grid">
-                <div class="circuit-wrapper" role="application" aria-label="Quantum Circuit Editor">
+                <div class="circuit-wrapper highlight-ensemble" role="application" aria-label="Quantum Circuit Editor">
                     <div class="grid-lines">
                         <!-- Horizontal grid lines -->
-                        <div class="horizontal-line" style="top: 60px;"></div>
-                        <div class="horizontal-line" style="top: 125px;"></div>
-                        <div class="horizontal-line" style="top: 190px;"></div>
+                        <div class="horizontal-line qubit-line" style="top: 60px;"></div>
+                        <div class="horizontal-line qubit-line" style="top: 125px;"></div>
+                        <div class="horizontal-line qubit-line" style="top: 190px;"></div>
+                        <div class="horizontal-line qubit-line" style="top: 255px;"></div>
                         
                         <!-- Vertical grid lines - step size of 50px -->
                         <div class="vertical-line" style="left: 175px;"></div>
                         <div class="vertical-line" style="left: 225px;"></div>
                         <div class="vertical-line" style="left: 275px;"></div>
-                        <div class="vertical-line" style="left: 325px;"></div>
+                        <div class="vertical-line active" style="left: 325px;"></div>
                         <div class="vertical-line" style="left: 375px;"></div>
                         <div class="vertical-line" style="left: 425px;"></div>
                         <div class="vertical-line" style="left: 475px;"></div>
@@ -1408,28 +1909,30 @@
                     </div>
                     
                     <!-- Grid position markers -->
-                    <div class="grid-marker" style="left: 175px; top: 210px;">1</div>
-                    <div class="grid-marker" style="left: 225px; top: 210px;">2</div>
-                    <div class="grid-marker" style="left: 275px; top: 210px;">3</div>
-                    <div class="grid-marker" style="left: 325px; top: 210px;">4</div>
-                    <div class="grid-marker" style="left: 375px; top: 210px;">5</div>
-                    <div class="grid-marker" style="left: 425px; top: 210px;">6</div>
-                    <div class="grid-marker" style="left: 475px; top: 210px;">7</div>
-                    <div class="grid-marker" style="left: 525px; top: 210px;">8</div>
-                    <div class="grid-marker" style="left: 575px; top: 210px;">9</div>
-                    <div class="grid-marker" style="left: 625px; top: 210px;">10</div>
-                    <div class="grid-marker" style="left: 675px; top: 210px;">11</div>
-                    <div class="grid-marker" style="left: 725px; top: 210px;">12</div>
+                    <div class="grid-marker" style="left: 175px; top: 270px;">1</div>
+                    <div class="grid-marker" style="left: 225px; top: 270px;">2</div>
+                    <div class="grid-marker" style="left: 275px; top: 270px;">3</div>
+                    <div class="grid-marker" style="left: 325px; top: 270px;">4</div>
+                    <div class="grid-marker" style="left: 375px; top: 270px;">5</div>
+                    <div class="grid-marker" style="left: 425px; top: 270px;">6</div>
+                    <div class="grid-marker" style="left: 475px; top: 270px;">7</div>
+                    <div class="grid-marker" style="left: 525px; top: 270px;">8</div>
+                    <div class="grid-marker" style="left: 575px; top: 270px;">9</div>
+                    <div class="grid-marker" style="left: 625px; top: 270px;">10</div>
+                    <div class="grid-marker" style="left: 675px; top: 270px;">11</div>
+                    <div class="grid-marker" style="left: 725px; top: 270px;">12</div>
                     
                     <!-- Qubit labels -->
-                    <div class="qubit-label" style="top: 40px;">Q0 <span class="state-label">|0⟩</span></div>
+                    <div class="qubit-label ensemble" style="top: 40px;">Q0 <span class="state-label">|0⟩</span> <span class="ensemble-badge">NMR</span></div>
                     <div class="qubit-label" style="top: 105px;">Q1 <span class="state-label">|0⟩</span></div>
                     <div class="qubit-label" style="top: 170px;">Q2 <span class="state-label">|0⟩</span></div>
+                    <div class="qubit-label ensemble" style="top: 235px;">Q3 <span class="state-label">|0⟩</span> <span class="ensemble-badge">NMR</span></div>
                     
                     <!-- Added gates -->
                     <div class="circuit-gate" style="top: 40px; left: 175px;" role="button" tabindex="0" aria-label="Hadamard Gate on Qubit 0">H</div>
-                    <div class="circuit-gate" style="top: 40px; left: 225px;" role="button" tabindex="0" aria-label="X Gate on Qubit 0">X</div>
+                    <div class="circuit-gate nmr-gate" style="top: 40px; left: 225px;" role="button" tabindex="0" aria-label="X Gate on Qubit 0">X</div>
                     <div class="circuit-gate selected" style="top: 105px; left: 225px;" role="button" tabindex="0" aria-label="Z Gate on Qubit 1">Z</div>
+                    <div class="circuit-gate nmr-gate" style="top: 235px; left: 325px;" role="button" tabindex="0" aria-label="Rx Gate on Qubit 3">Rx</div>
                     
                     <!-- CNOT connection line -->
                     <div class="gate-connection vertical" style="top: 40px; left: 175px; height: 65px;"></div>
@@ -1437,6 +1940,62 @@
                     
                     <!-- Drop indicator (visible during drag) -->
                     <div class="drop-indicator" style="top: 170px; left: 275px;"></div>
+                    
+                    <!-- NMR Ensemble Visualization -->
+                    <div class="ensemble-visualization">
+                        <div class="ensemble-viz-header">
+                            <div><i class="fas fa-atom"></i> NMR Ensemble View</div>
+                            <div class="ensemble-viz-controls">
+                                <i class="fas fa-expand-arrows-alt" style="cursor: pointer; margin-left: 10px;"></i>
+                            </div>
+                        </div>
+                        <div class="ensemble-viz-content">
+                            <div class="ensemble-spins" id="ensemble-spins">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Educational Help Panel -->
+                    <div class="help-panel" id="help-panel">
+                        <div class="help-panel-header" id="help-panel-header">
+                            <div class="help-panel-title">
+                                <i class="fas fa-question-circle"></i> NMR Quantum Guide
+                            </div>
+                            <i class="fas fa-chevron-up"></i>
+                        </div>
+                        <div class="help-panel-content">
+                            <div class="help-section">
+                                <h3>NMR Quantum Computing Basics</h3>
+                                <p>Nuclear Magnetic Resonance (NMR) quantum computing uses the spin states of atomic nuclei as qubits. Unlike single-particle qubits, NMR uses large ensembles of nuclear spins.</p>
+                                <ul>
+                                    <li>Operates at room temperature with billions of nuclear spins</li>
+                                    <li>Uses RF pulses to manipulate quantum states</li>
+                                    <li>Ideal for educational purposes and algorithm exploration</li>
+                                </ul>
+                            </div>
+                            <div class="help-section">
+                                <h3>NMR vs Traditional Qubits</h3>
+                                <p>NMR quantum computing differs from other quantum computing approaches:</p>
+                                <ul>
+                                    <li>Ensemble qubits instead of individual qubits</li>
+                                    <li>Highly mixed states (low polarization)</li>
+                                    <li>Long coherence times due to nuclear isolation</li>
+                                    <li>Limited scalability but excellent for learning</li>
+                                </ul>
+                            </div>
+                            <div class="help-section">
+                                <h3>Common NMR Operations</h3>
+                                <p>Quantum operations in NMR are implemented using:</p>
+                                <ul>
+                                    <li>π/2 pulses: 90° rotations (similar to √X, √Y gates)</li>
+                                    <li>π pulses: 180° rotations (similar to X, Y gates)</li>
+                                    <li>Delays: Allow spin evolution under J-coupling</li>
+                                    <li>Spin echo: Technique to mitigate decoherence</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                     
                     <!-- Circuit watermark -->
                     <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 28px; color: rgba(111, 66, 193, 0.1); font-weight: 600; letter-spacing: 2px; text-transform: uppercase; pointer-events: none;" aria-hidden="true">
@@ -1505,6 +2064,9 @@
             <div class="panel-content" id="pulse-panel-content">
                 <div class="pulse-visualization-container">
                     <div class="pulse-header">
+                        <div class="pulse-title">
+                            <i class="fas fa-wave-square" aria-hidden="true"></i> NMR Pulse Sequence
+                        </div>
                         <div class="pulse-controls">
                             <div class="pulse-control" data-tooltip="Zoom in" role="button" tabindex="0" aria-label="Zoom in">
                                 <i class="fas fa-search-plus" aria-hidden="true"></i> Zoom In
@@ -1546,6 +2108,7 @@
                     <div class="pulse-visualization">
                         <div class="channel-label">P</div>
                         <div class="pulse-sequence">
+                            <div class="pulse-block π4" style="left: 60%; width: 8%;" data-tooltip="π/4 pulse"></div>
                             <div class="pulse-block" style="left: 70%; width: 15%;" data-tooltip="RF pulse"></div>
                             <div class="pulse-block π" style="left: 87%; width: 10%;" data-tooltip="π pulse"></div>
                         </div>
@@ -1566,6 +2129,9 @@
             </div>
             <div class="panel-content" id="echo-panel-content">
                 <div class="spin-echo-visualization">
+                    <div class="spin-echo-header">
+                        <div><i class="fas fa-sync-alt" aria-hidden="true"></i> NMR Spin Echo Sequence</div>
+                    </div>
                     <div class="spin-echo-timing">
                         <label for="echoTime">Echo Time (ms):</label>
                         <input type="number" id="echoTime" value="20" step="1" min="1" aria-label="Echo Time in milliseconds">
@@ -1616,24 +2182,88 @@
     </div>
     
     <script>
-        // NMR Quantum Circuit State Management
-        class NMRCircuitState {
-            constructor() {
-                this.pulseSequence = [];
-                this.parameters = {
-                    larmorFrequency: 500, // MHz
-                    pulseDuration: 10,    // μs
-                    t1: 1.0,              // s
-                    t2: 0.5,              // s
-                    echoTime: 20,         // ms
-                    numEchoes: 1,
-                    phase: 0              // degrees
-                };
-                this.state = {
-                    x: 0,
-                    y: 0,
-                    z: 1
-                };
+                    // Create scrollable page function (for mobile compatibility)
+            function enableScrolling() {
+                document.addEventListener('touchmove', function(e) {
+                    e.preventDefault();
+                }, { passive: false });
+                
+                const scrollableElements = document.querySelectorAll('.circuit-grid, .panel-content, .help-panel-content');
+                scrollableElements.forEach(elem => {
+                    elem.addEventListener('touchstart', function(e) {
+                        this.allowUp = (this.scrollTop > 0);
+                        this.allowDown = (this.scrollTop < this.scrollHeight - this.clientHeight);
+                        this.lastY = e.touches[0].clientY;
+                    });
+                    
+                    elem.addEventListener('touchmove', function(e) {
+                        const up = (e.touches[0].clientY > this.lastY);
+                        const down = !up;
+                        this.lastY = e.touches[0].clientY;
+                        
+                        if ((up && this.allowUp) || (down && this.allowDown)) {
+                            e.stopPropagation();
+                        } else {
+                            e.preventDefault();
+                        }
+                    }, { passive: false });
+                });
+            }
+            
+            // Initialize viewport meta for mobile compatibility
+            function setViewportForMobile() {
+                // Check if viewport meta exists, if not create it
+                let viewportMeta = document.querySelector('meta[name="viewport"]');
+                if (!viewportMeta) {
+                    viewportMeta = document.createElement('meta');
+                    viewportMeta.name = 'viewport';
+                    document.head.appendChild(viewportMeta);
+                }
+                viewportMeta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0';
+            }
+            
+            // NMR Quantum Circuit State Management
+            class NMRCircuitState {
+                constructor() {
+                    this.pulseSequence = [];
+                    this.parameters = {
+                        larmorFrequency: 500, // MHz
+                        pulseDuration: 10,    // μs
+                        t1: 1.0,              // s
+                        t2: 0.5,              // s
+                        echoTime: 20,         // ms
+                        numEchoes: 1,
+                        phase: 0              // degrees
+                    };
+                    this.state = {
+                        x: 0,
+                        y: 0,
+                        z: 1
+                    };
+                    this.ensembleStates = [];
+                    this.ensembleSize = 100;
+                    this.initializeEnsemble();
+                }
+
+            initializeEnsemble() {
+                // Create ensemble of spins with slight variations to simulate a real NMR ensemble
+                this.ensembleStates = [];
+                for (let i = 0; i < this.ensembleSize; i++) {
+                    // Add slight randomness to initial states to simulate thermal distribution
+                    const randomZ = 0.9 + Math.random() * 0.2; // z varies between 0.9 and 1.1
+                    const randomAngle = Math.random() * Math.PI * 2; // random orientation in xy plane
+                    const randomX = Math.sin(randomAngle) * 0.1; // small x component
+                    const randomY = Math.cos(randomAngle) * 0.1; // small y component
+                    
+                    this.ensembleStates.push({
+                        x: randomX,
+                        y: randomY,
+                        z: randomZ,
+                        // Add slight frequency variations to simulate realistic ensemble
+                        frequencyOffset: (Math.random() - 0.5) * 2, // Hz
+                        relaxationOffset: (Math.random() * 0.3) + 0.85 // T1/T2 multiplier
+                    });
+                }
             }
 
             validateParameters() {
@@ -1700,6 +2330,7 @@
                 
                 const sequence = [];
                 const originalState = { ...this.state };
+                const originalEnsembleStates = [...this.ensembleStates];
                 const originalSequenceLength = this.pulseSequence.length;
                 
                 try {
@@ -1712,6 +2343,9 @@
                         sequence.push(this.addPulse('π'));
                         sequence.push(this.addDelay(echoTime / 2)); // Half of echo time
                     }
+                    
+                    // Update visualization
+                    this.updateEnsembleVisualization();
                 } catch (error) {
                     // If there's an error, roll back the sequence and state
                     const addedPulses = this.pulseSequence.length - originalSequenceLength;
@@ -1719,6 +2353,7 @@
                         this.pulseSequence.pop();
                     }
                     this.state = originalState;
+                    this.ensembleStates = originalEnsembleStates;
                     throw error;
                 }
                 
@@ -1726,7 +2361,7 @@
             }
 
             updateState(pulse) {
-                // Simulate NMR state evolution
+                // Simulate NMR state evolution for average state
                 switch(pulse.type) {
                     case 'π/2':
                         const angle = Math.PI / 2;
@@ -1764,6 +2399,116 @@
                         };
                         break;
                 }
+                
+                // Update ensemble states with similar transformations but with variations
+                this.updateEnsembleStates(pulse);
+            }
+            
+            updateEnsembleStates(pulse) {
+                // Apply pulse to each spin in the ensemble with slight variations
+                this.ensembleStates.forEach(spin => {
+                    // Apply the same transformations as for average state, but with variations
+                    switch(pulse.type) {
+                        case 'π/2':
+                            const phaseRad = ((this.parameters.phase + (Math.random() - 0.5) * 5) * Math.PI) / 180; // 5° variation
+                            const tempX = spin.x;
+                            const tempY = spin.y;
+                            spin.x = spin.z * Math.cos(phaseRad) + (Math.random() - 0.5) * 0.05; // Add noise
+                            spin.y = spin.z * Math.sin(phaseRad) + (Math.random() - 0.5) * 0.05;
+                            spin.z = -tempX * Math.cos(phaseRad) - tempY * Math.sin(phaseRad) + (Math.random() - 0.5) * 0.05;
+                            break;
+                        case 'π':
+                            const piPhaseRad = ((this.parameters.phase + (Math.random() - 0.5) * 5) * Math.PI) / 180;
+                            const tempPiX = spin.x;
+                            spin.x = -spin.x * Math.cos(piPhaseRad) - spin.y * Math.sin(piPhaseRad) + (Math.random() - 0.5) * 0.05;
+                            spin.y = tempPiX * Math.sin(piPhaseRad) - spin.y * Math.cos(piPhaseRad) + (Math.random() - 0.5) * 0.05;
+                            spin.z = -spin.z + (Math.random() - 0.5) * 0.05;
+                            break;
+                        case 'π/4':
+                            const pi4Angle = (Math.PI / 4) * (0.95 + Math.random() * 0.1); // 5% variation
+                            const pi4PhaseRad = ((this.parameters.phase + (Math.random() - 0.5) * 5) * Math.PI) / 180;
+                            const tempPi4X = spin.x;
+                            const tempPi4Y = spin.y;
+                            const tempPi4Z = spin.z;
+                            spin.x = tempPi4X * Math.cos(pi4Angle) + tempPi4Z * Math.sin(pi4Angle) * Math.cos(pi4PhaseRad) + (Math.random() - 0.5) * 0.05;
+                            spin.y = tempPi4Y * Math.cos(pi4Angle) + tempPi4Z * Math.sin(pi4Angle) * Math.sin(pi4PhaseRad) + (Math.random() - 0.5) * 0.05;
+                            spin.z = -tempPi4X * Math.sin(pi4Angle) * Math.cos(pi4PhaseRad) - tempPi4Y * Math.sin(pi4Angle) * Math.sin(pi4PhaseRad) + tempPi4Z * Math.cos(pi4Angle) + (Math.random() - 0.5) * 0.05;
+                            break;
+                        case 'delay':
+                            // Simulate relaxation with individual variations
+                            const t = pulse.duration / 1000; // convert to seconds
+                            const t1Factor = this.parameters.t1 * spin.relaxationOffset;
+                            const t2Factor = this.parameters.t2 * spin.relaxationOffset;
+                            spin.x = spin.x * Math.exp(-t / t2Factor);
+                            spin.y = spin.y * Math.exp(-t / t2Factor);
+                            spin.z = 1 + (spin.z - 1) * Math.exp(-t / t1Factor);
+                            break;
+                    }
+                    
+                    // Apply additional random phase evolution due to frequency offsets during delays
+                    if (pulse.type === 'delay') {
+                        const t = pulse.duration / 1000; // seconds
+                        const phaseShift = 2 * Math.PI * spin.frequencyOffset * t;
+                        const tempX = spin.x;
+                        spin.x = tempX * Math.cos(phaseShift) - spin.y * Math.sin(phaseShift);
+                        spin.y = tempX * Math.sin(phaseShift) + spin.y * Math.cos(phaseShift);
+                    }
+                });
+                
+                // Update visualization
+                this.updateEnsembleVisualization();
+            }
+            
+            updateEnsembleVisualization() {
+                // Update the 3D visualization of ensemble spins
+                const container = document.getElementById('ensemble-spins');
+                if (!container) return;
+                
+                // Clear existing spins
+                container.innerHTML = '';
+                
+                // Create new spin representations based on current ensemble states
+                this.ensembleStates.forEach((spin, index) => {
+                    if (index < 20) { // Limit visualization to 20 spins for performance
+                        // Create spin container
+                        const spinElem = document.createElement('div');
+                        spinElem.className = 'ensemble-spin';
+                        
+                        // Position randomly in 3D space
+                        const radius = 60; // sphere radius
+                        const theta = Math.random() * Math.PI * 2;
+                        const phi = Math.acos(2 * Math.random() - 1);
+                        const x = radius * Math.sin(phi) * Math.cos(theta);
+                        const y = radius * Math.sin(phi) * Math.sin(theta);
+                        const z = radius * Math.cos(phi);
+                        
+                        // Apply 3D transform
+                        spinElem.style.transform = `translate3d(${x + 75}px, ${y + 75}px, ${z}px)`;
+                        
+                        // Create arrow
+                        const arrow = document.createElement('div');
+                        arrow.className = 'ensemble-arrow';
+                        
+                        // Set arrow direction based on spin state
+                        const normFactor = Math.sqrt(spin.x*spin.x + spin.y*spin.y + spin.z*spin.z);
+                        const normalizedX = spin.x / normFactor;
+                        const normalizedY = spin.y / normFactor;
+                        const normalizedZ = spin.z / normFactor;
+                        
+                        // Calculate rotation angle and axis for the arrow
+                        const angle = Math.acos(normalizedZ) * (180 / Math.PI);
+                        const rotationAxis = [normalizedY, -normalizedX, 0];
+                        if (Math.abs(normalizedZ) < 0.999) {
+                            arrow.style.setProperty('--x', rotationAxis[0]);
+                            arrow.style.setProperty('--y', rotationAxis[1]);
+                            arrow.style.setProperty('--z', rotationAxis[2]);
+                            arrow.style.setProperty('--angle', `${angle}deg`);
+                        }
+                        
+                        spinElem.appendChild(arrow);
+                        container.appendChild(spinElem);
+                    }
+                });
             }
 
             getStateVector() {
@@ -1777,49 +2522,30 @@
 
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
+            // Set viewport for mobile compatibility
+            setViewportForMobile();
+            
+            // Enable proper scrolling behavior
+            enableScrolling();
+            
             const nmrState = new NMRCircuitState();
+            
+            // Initialize ensemble visualization
+            nmrState.updateEnsembleVisualization();
             
             // Create grid cells for better interaction
             function createGridCells() {
                 const container = document.getElementById('grid-cell-container');
-                const gridPositions = [
-                    { x: 175, y: 40 },
-                    { x: 225, y: 40 },
-                    { x: 275, y: 40 },
-                    { x: 325, y: 40 },
-                    { x: 375, y: 40 },
-                    { x: 425, y: 40 },
-                    { x: 475, y: 40 },
-                    { x: 525, y: 40 },
-                    { x: 575, y: 40 },
-                    { x: 625, y: 40 },
-                    { x: 675, y: 40 },
-                    { x: 725, y: 40 },
-                    { x: 175, y: 105 },
-                    { x: 225, y: 105 },
-                    { x: 275, y: 105 },
-                    { x: 325, y: 105 },
-                    { x: 375, y: 105 },
-                    { x: 425, y: 105 },
-                    { x: 475, y: 105 },
-                    { x: 525, y: 105 },
-                    { x: 575, y: 105 },
-                    { x: 625, y: 105 },
-                    { x: 675, y: 105 },
-                    { x: 725, y: 105 },
-                    { x: 175, y: 170 },
-                    { x: 225, y: 170 },
-                    { x: 275, y: 170 },
-                    { x: 325, y: 170 },
-                    { x: 375, y: 170 },
-                    { x: 425, y: 170 },
-                    { x: 475, y: 170 },
-                    { x: 525, y: 170 },
-                    { x: 575, y: 170 },
-                    { x: 625, y: 170 },
-                    { x: 675, y: 170 },
-                    { x: 725, y: 170 }
-                ];
+                const gridPositions = [];
+                
+                // Create grid positions for 4 qubits and 12 positions
+                for (let qubit = 0; qubit < 4; qubit++) {
+                    const yPos = 40 + (qubit * 65);
+                    for (let pos = 0; pos < 12; pos++) {
+                        const xPos = 175 + (pos * 50);
+                        gridPositions.push({ x: xPos, y: yPos });
+                    }
+                }
                 
                 // Clear existing cells if any
                 container.innerHTML = '';
@@ -1875,6 +2601,25 @@
                 newGate.setAttribute('tabindex', '0');
                 newGate.setAttribute('aria-label', `${gateText} Gate on Qubit ${qubit}`);
                 
+                // Check if this is an NMR ensemble qubit (Q0 or Q3)
+                if (qubit === 0 || qubit === 3) {
+                    newGate.classList.add('nmr-gate');
+                    
+                    // For NMR gates, update the NMR state
+                    if (gateText === 'X' || gateText === 'Rx') {
+                        nmrState.addPulse('π');
+                    } else if (gateText === 'Y' || gateText === 'Ry') {
+                        nmrState.addPulse('π');
+                    } else if (gateText === 'H') {
+                        nmrState.addPulse('π/2');
+                    } else if (gateText === '√X' || gateText === '√Y') {
+                        nmrState.addPulse('π/4');
+                    }
+                    
+                    // Update pulse visualization
+                    updatePulseVisualization();
+                }
+                
                 // Add to circuit
                 const circuitWrapper = document.querySelector('.circuit-wrapper');
                 circuitWrapper.appendChild(newGate);
@@ -1928,8 +2673,8 @@
                         const gridY = Math.floor((startTop + dy - 40) / 65) * 65 + 40;
                         
                         // Add maximum bounds checking
-                        const maxX = 175 + (8 * 50); // Maximum 8 columns
-                        const maxY = 40 + (5 * 65);  // Maximum 5 rows
+                        const maxX = 175 + (11 * 50); // Maximum 12 columns
+                        const maxY = 40 + (3 * 65);  // Maximum 4 rows
                         
                         if (gridX >= 175 && gridX <= maxX && gridY >= 40 && gridY <= maxY) {
                             this.style.left = `${gridX}px`;
@@ -1969,6 +2714,14 @@
                         // Update circuit state if no conflicts
                         if (!hasConflict) {
                             updateCircuitState();
+                            
+                            // Check if moved to NMR qubit
+                            const newQubit = Math.floor((parseInt(this.style.top) - 40) / 65);
+                            if (newQubit === 0 || newQubit === 3) {
+                                this.classList.add('nmr-gate');
+                            } else {
+                                this.classList.remove('nmr-gate');
+                            }
                         }
                     }.bind(this);
 
@@ -2244,9 +2997,31 @@
                     newGate.textContent = gateText;
                     newGate.style.left = dropIndicator.style.left;
                     newGate.style.top = dropIndicator.style.top;
+                    
+                    const qubit = Math.floor((parseInt(dropIndicator.style.top) - 40) / 65);
+                    
+                    // Check if this is an NMR ensemble qubit (Q0 or Q3)
+                    if (qubit === 0 || qubit === 3) {
+                        newGate.classList.add('nmr-gate');
+                        
+                        // For NMR gates, update the NMR state
+                        if (gateText === 'X' || gateText === 'Rx') {
+                            nmrState.addPulse('π');
+                        } else if (gateText === 'Y' || gateText === 'Ry') {
+                            nmrState.addPulse('π');
+                        } else if (gateText === 'H') {
+                            nmrState.addPulse('π/2');
+                        } else if (gateText === '√X' || gateText === '√Y') {
+                            nmrState.addPulse('π/4');
+                        }
+                        
+                        // Update pulse visualization
+                        updatePulseVisualization();
+                    }
+                    
                     newGate.setAttribute('role', 'button');
                     newGate.setAttribute('tabindex', '0');
-                    newGate.setAttribute('aria-label', `${gateText} Gate on Qubit ${Math.floor((parseInt(dropIndicator.style.top) - 40) / 65)}`);
+                    newGate.setAttribute('aria-label', `${gateText} Gate on Qubit ${qubit}`);
                     
                     // Add to circuit
                     const circuitWrapper = document.querySelector('.circuit-wrapper');
@@ -2301,14 +3076,22 @@
                             const gridY = Math.floor((startTop + dy - 40) / 65) * 65 + 40;
                             
                             // Add maximum bounds checking
-                            const maxX = 175 + (8 * 50); // Maximum 8 columns
-                            const maxY = 40 + (5 * 65);  // Maximum 5 rows
+                            const maxX = 175 + (11 * 50); // Maximum 12 columns
+                            const maxY = 40 + (3 * 65);  // Maximum 4 rows
                             
                             if (gridX >= 175 && gridX <= maxX && gridY >= 40 && gridY <= maxY) {
                                 this.style.left = `${gridX}px`;
                                 this.style.top = `${gridY}px`;
                                 // Update ARIA label
-                                this.setAttribute('aria-label', `${this.textContent.trim()} Gate on Qubit ${Math.floor((gridY - 40) / 65)}`);
+                                const newQubit = Math.floor((gridY - 40) / 65);
+                                this.setAttribute('aria-label', `${this.textContent.trim()} Gate on Qubit ${newQubit}`);
+                                
+                                // Update gate appearance if moving to/from NMR qubit
+                                if (newQubit === 0 || newQubit === 3) {
+                                    this.classList.add('nmr-gate');
+                                } else {
+                                    this.classList.remove('nmr-gate');
+                                }
                             }
                         }.bind(this);
                         
@@ -2359,9 +3142,221 @@
                         e.preventDefault();
                     });
                     
-                    showNotification(`Added ${gateText} gate`, "success");
+                    showNotification(`Added ${gateText} gate to qubit ${qubit}`, "success");
+                }
+                
+                // Reset drag tracking and remove event listeners
+                draggedGate = null;
+                document.removeEventListener('mousemove', dragMove);
+                document.removeEventListener('mouseup', dragEnd);
+                
+                // Hide drop indicator
+                dropIndicator.style.display = 'none';
+            }
+            
+            // Helper function to position an element at cursor position
+            function positionElement(element, x, y) {
+                // Position element so its center is at the cursor
+                const rect = element.getBoundingClientRect();
+                element.style.left = `${x - rect.width / 2}px`;
+                element.style.top = `${y - rect.height / 2}px`;
+            }
+            
+            // Update circuit state based on placed gates
+            function updateCircuitState() {
+                // Implementation depends on how you want to track and use circuit state
+                // This could update your quantum state simulation or prepare data for backend processing
+                console.log('Circuit state updated');
+            }
+            
+            // Show notification
+            function showNotification(message, type = 'info') {
+                const notification = document.createElement('div');
+                notification.className = `notification ${type}`;
+                notification.innerHTML = `<i class="fas ${type === 'error' ? 'fa-exclamation-circle' : type === 'success' ? 'fa-check-circle' : 'fa-info-circle'}"></i> ${message}`;
+                document.body.appendChild(notification);
+                
+                // Remove after 3 seconds
+                setTimeout(() => {
+                    notification.style.opacity = '0';
+                    setTimeout(() => notification.remove(), 300);
+                }, 3000);
+            }
+            
+            // Panel toggle functionality
+            document.querySelectorAll('.panel-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    const panel = this.closest('.panel');
+                    const content = panel.querySelector('.panel-content');
+                    const toggle = this.querySelector('.panel-toggle i');
+                    
+                    if (content.classList.contains('collapsed')) {
+                        content.classList.remove('collapsed');
+                        toggle.classList.remove('collapsed');
+                    } else {
+                        content.classList.add('collapsed');
+                        toggle.classList.add('collapsed');
+                    }
+                });
+            });
+            
+            // Help panel toggle
+            document.getElementById('help-panel-header').addEventListener('click', function() {
+                const panel = document.getElementById('help-panel');
+                if (panel.classList.contains('collapsed')) {
+                    panel.classList.remove('collapsed');
+                    this.querySelector('i.fas.fa-chevron-up').style.transform = 'rotate(0)';
+                } else {
+                    panel.classList.add('collapsed');
+                    this.querySelector('i.fas.fa-chevron-up').style.transform = 'rotate(180deg)';
+                }
+            });
+            
+            // Full grid mode toggle
+            document.getElementById('fullGridToggle').addEventListener('click', function() {
+                document.querySelector('.app-container').classList.toggle('full-grid-mode');
+                this.innerHTML = document.querySelector('.app-container').classList.contains('full-grid-mode') 
+                    ? '<i class="fas fa-compress-alt" aria-hidden="true"></i> Normal View'
+                    : '<i class="fas fa-expand-alt" aria-hidden="true"></i> Maximize Grid';
+            });
+            
+            // Floating expand button for easy toggle
+            document.getElementById('expandGridButton').addEventListener('click', function() {
+                document.querySelector('.app-container').classList.toggle('full-grid-mode');
+                document.getElementById('fullGridToggle').innerHTML = document.querySelector('.app-container').classList.contains('full-grid-mode') 
+                    ? '<i class="fas fa-compress-alt" aria-hidden="true"></i> Normal View'
+                    : '<i class="fas fa-expand-alt" aria-hidden="true"></i> Maximize Grid';
+            });
+            
+            // Buttons for NMR specific operations
+            document.querySelectorAll('.pulse-sequence-controls button').forEach(button => {
+                // Pulse sequence button click handlers are already defined in the onclick attributes
+                // Here we can add additional functionality if needed
+            });
+            
+            // Initialize with a few sample pulses
+            nmrState.addPulse('π/2');
+            nmrState.addDelay(100);
+            nmrState.addPulse('π');
+            updatePulseVisualization();
+            
+            // Handle Spin Echo parameters
+            document.getElementById('echoTime').addEventListener('change', function() {
+                nmrState.parameters.echoTime = parseFloat(this.value);
+            });
+            
+            document.getElementById('numEchoes').addEventListener('change', function() {
+                nmrState.parameters.numEchoes = parseInt(this.value);
+            });
+            
+            // Create initial ensemble visualization
+            createEnsembleVisualization();
+            
+            function createEnsembleVisualization() {
+                const container = document.getElementById('ensemble-spins');
+                
+                // Create initial random spins
+                for (let i = 0; i < 20; i++) {
+                    const spinElem = document.createElement('div');
+                    spinElem.className = 'ensemble-spin';
+                    
+                    // Position randomly in 3D space
+                    const radius = 60;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos(2 * Math.random() - 1);
+                    const x = radius * Math.sin(phi) * Math.cos(theta);
+                    const y = radius * Math.sin(phi) * Math.sin(theta);
+                    const z = radius * Math.cos(phi);
+                    
+                    spinElem.style.transform = `translate3d(${x + 75}px, ${y + 75}px, ${z}px)`;
+                    
+                    // Create arrow (mostly pointing up initially)
+                    const arrow = document.createElement('div');
+                    arrow.className = 'ensemble-arrow';
+                    
+                    // Initial state is mostly along z-axis
+                    const randomDeviation = Math.random() * 20; // degrees
+                    const randomAngle = Math.random() * 360; // around z-axis
+                    
+                    // Convert to radians
+                    const deviationRad = randomDeviation * (Math.PI / 180);
+                    const angleRad = randomAngle * (Math.PI / 180);
+                    
+                    // Calculate x, y components for the small deviation
+                    const xComp = Math.sin(deviationRad) * Math.cos(angleRad);
+                    const yComp = Math.sin(deviationRad) * Math.sin(angleRad);
+                    const zComp = Math.cos(deviationRad);
+                    
+                    arrow.style.setProperty('--x', yComp);
+                    arrow.style.setProperty('--y', -xComp);
+                    arrow.style.setProperty('--z', 0);
+                    arrow.style.setProperty('--angle', `${randomDeviation}deg`);
+                    
+                    spinElem.appendChild(arrow);
+                    container.appendChild(spinElem);
                 }
             }
+            
+            // Run circuit button
+            document.querySelector('.footer-button.primary').addEventListener('click', function() {
+                // Simulate running the circuit
+                showNotification("Running quantum circuit...", "info");
+                
+                // Highlight the circuit wrapper to indicate activity
+                const circuitWrapper = document.querySelector('.circuit-wrapper');
+                circuitWrapper.style.boxShadow = '0 0 0 2px var(--accent-color), 0 0 20px rgba(161, 86, 247, 0.4)';
+                
+                // Apply a series of pulses for demonstration
+                setTimeout(() => {
+                    nmrState.addPulse('π/2');
+                    updatePulseVisualization();
+                    
+                    setTimeout(() => {
+                        nmrState.addDelay(200);
+                        updatePulseVisualization();
+                        
+                        setTimeout(() => {
+                            nmrState.addPulse('π');
+                            updatePulseVisualization();
+                            
+                            setTimeout(() => {
+                                circuitWrapper.style.boxShadow = '';
+                                showNotification("Circuit execution complete!", "success");
+                            }, 1000);
+                        }, 800);
+                    }, 800);
+                }, 1000);
+            });
+            
+            // Add resize event listener to fix layout issues
+            window.addEventListener('resize', function() {
+                // Adjust dimensions of containers based on window size
+                const circuitGrid = document.querySelector('.circuit-grid');
+                if (window.innerWidth < 800) {
+                    // For mobile and small screens
+                    // Make sure the circuit grid is scrollable
+                    circuitGrid.style.overflowX = 'auto';
+                    circuitGrid.style.overflowY = 'auto';
+                }
+            });
+            
+            // Fix for initial scroll issues
+            window.setTimeout(function() {
+                // Scroll to top to ensure everything is visible
+                window.scrollTo(0, 0);
+                
+                // If on mobile, initially expand only the circuit grid
+                if (window.innerWidth < 800) {
+                    // Collapse all panels except circuit
+                    document.querySelectorAll('.panel-content').forEach(panel => {
+                        if (!panel.closest('.circuit-editor')) {
+                            panel.classList.add('collapsed');
+                            const toggle = panel.closest('.panel').querySelector('.panel-toggle i');
+                            if (toggle) toggle.classList.add('collapsed');
+                        }
+                    });
+                }
+            }, 500);
         });
     </script>
 </body>
